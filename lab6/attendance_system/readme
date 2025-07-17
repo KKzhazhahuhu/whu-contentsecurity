@@ -1,0 +1,5 @@
+基于人脸识别和活体检测技术的班级考勤系统
+——需要下载shape_predictor_68_face_landmarks.dat到/backend路径下
+——在/backend路径下运行python app.py
+——在浏览器中访问http://localhost:63342/attendance_system/frontend/index.html?_ijt
+=iumg900kpksncjqc357hpqhtpv&_ij_reload=RELOAD_ON_SAVE

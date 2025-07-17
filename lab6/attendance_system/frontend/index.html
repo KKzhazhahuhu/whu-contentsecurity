@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班级考勤系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.15.13/theme-chalk/index.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <el-container class="main-container">
+            <el-header class="header">
+                <div class="header-content">
+                    <h1 class="title">
+                        <i class="el-icon-user-solid"></i>
+                        班级考勤系统
+                    </h1>
+                    <div class="header-info">
+                        <el-tag :type="systemStatus.baidu_api_available ? 'success' : 'warning'" size="small">
+                            百度API: {{ systemStatus.baidu_api_available ? '可用' : '不可用' }}
+                        </el-tag>
+                        <el-tag :type="systemStatus.dlib_available ? 'success' : 'warning'" size="small" style="margin-left: 5px;">
+                            dlib: {{ systemStatus.dlib_available ? '可用' : '不可用' }}
+                        </el-tag>
+                        <el-tag type="info" size="small" style="margin-left: 5px;">
+                            人脸库: {{ systemStatus.face_database_count }}人
+                        </el-tag>
+                        <el-button type="text" @click="loadSystemStatus" style="margin-left: 10px;">
+                            <i class="el-icon-refresh"></i>
+                        </el-button>
+                    </div>
+                </div>
+            </el-header>
+
+            <el-main class="main-content">
+                <!-- 选项卡切换 -->
+                <el-tabs v-model="activeTab" @tab-click="handleTabClick" class="main-tabs">
+                    <!-- 考勤打卡 -->
+                    <el-tab-pane label="考勤打卡" name="attendance">
+                        <!-- 重要提示 -->
+                        <div class="important-notice">
+                            <el-alert
+                                title="💡 重要提示"
+                                description="可以在右侧选择不同的活体检测方法，或使用摄像头下方的快速切换按钮"
+                                type="info"
+                                show-icon
+                                :closable="false"
+                                style="margin-bottom: 20px;"
+                            >
+                            </el-alert>
+                        </div>
+
+                        <div class="attendance-container">
+                            <!-- 左侧：摄像头区域 -->
+                            <div class="camera-section">
+                                <el-card class="camera-card">
+                                    <div slot="header">
+                                        <span>摄像头监控</span>
+                                        <el-tag :type="cameraActive ? 'success' : 'info'" size="mini" style="float: right;">
+                                            {{ cameraActive ? '运行中' : '未启动' }}
+                                        </el-tag>
+                                    </div>
+
+                                    <div class="camera-container">
+                                        <video
+                                            ref="video"
+                                            :width="cameraConfig.width"
+                                            :height="cameraConfig.height"
+                                            autoplay
+                                            muted
+                                            class="video-element"
+                                            :class="{ 'camera-inactive': !cameraActive }"
+                                        ></video>
+                                        <canvas
+                                            ref="canvas"
+                                            :width="cameraConfig.width"
+                                            :height="cameraConfig.height"
+                                            style="display: none;"
+                                        ></canvas>
+
+                                        <!-- 摄像头未启动时的占位符 -->
+                                        <div v-if="!cameraActive" class="camera-placeholder">
+                                            <i class="el-icon-video-camera camera-placeholder-icon"></i>
+                                            <p>摄像头未启动</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 控制按钮 -->
+                                    <div class="camera-controls">
+                                        <div class="control-row">
+                                            <el-button
+                                                type="primary"
+                                                icon="el-icon-video-camera-solid"
+                                                @click="startCamera"
+                                                :disabled="cameraActive"
+                                                size="small"
+                                            >
+                                                启动摄像头
+                                            </el-button>
+
+                                            <el-button
+                                                type="success"
+                                                icon="el-icon-check"
+                                                @click="captureAndAttendance"
+                                                :disabled="!cameraActive || processing"
+                                                :loading="processing"
+                                                size="small"
+                                            >
+                                                考勤打卡
+                                            </el-button>
+
+                                            <el-button
+                                                type="info"
+                                                icon="el-icon-refresh"
+                                                @click="stopCamera"
+                                                :disabled="!cameraActive"
+                                                size="small"
+                                            >
+                                                停止摄像头
+                                            </el-button>
+                                        </div>
+
+                                        <!-- 快速切换检测方法 -->
+                                        <div class="quick-method-switch">
+                                            <span class="switch-label">快速切换:</span>
+                                            <el-button-group>
+                                                <el-button
+                                                    v-for="method in livenessMethods"
+                                                    :key="method.key"
+                                                    :type="selectedLivenessMethod === method.key ? 'primary' : 'default'"
+                                                    size="mini"
+                                                    @click="quickSwitchMethod(method.key)"
+                                                >
+                                                    {{ method.name }}
+                                                </el-button>
+                                            </el-button-group>
+                                        </div>
+                                    </div>
+                                </el-card>
+
+
+                            </div>
+
+                            <!-- 右侧：结果显示区域 -->
+                            <div class="result-section">
+                                <!-- 活体检测方法选择 - 移到右侧顶部更显眼 -->
+                                <el-card class="method-selection-card">
+                                    <div slot="header">
+                                        <span><i class="el-icon-set-up"></i> 活体检测方法选择</span>
+                                        <el-tag type="warning" size="mini" style="float: right;">
+                                            重要设置
+                                        </el-tag>
+                                    </div>
+                                    <div class="method-selection-content">
+                                        <el-radio-group
+                                            v-model="selectedLivenessMethod"
+                                            @change="onLivenessMethodChange"
+                                            class="method-radio-group"
+                                        >
+                                            <el-radio
+                                                v-for="method in livenessMethods"
+                                                :key="method.key"
+                                                :label="method.key"
+                                                class="method-radio-item"
+                                            >
+                                                <div class="method-option">
+                                                    <div class="method-name">{{ method.name }}</div>
+                                                    <div class="method-desc">{{ method.description }}</div>
+                                                </div>
+                                            </el-radio>
+                                        </el-radio-group>
+
+                                        <div class="current-method-info">
+                                            <el-alert
+                                                :title="`当前方法: ${getCurrentMethodInfo().name}`"
+                                                :description="getCurrentMethodInfo().description"
+                                                type="success"
+                                                :closable="false"
+                                                show-icon
+                                            ></el-alert>
+                                        </div>
+
+                                        <!-- 方法对比说明 -->
+                                        <div class="method-comparison">
+                                            <el-collapse accordion>
+                                                <el-collapse-item title="📊 方法对比说明" name="comparison">
+                                                    <el-table :data="methodComparisonData" size="mini" border>
+                                                        <el-table-column prop="method" label="检测方法" width="120"></el-table-column>
+                                                        <el-table-column prop="accuracy" label="准确度" width="80"></el-table-column>
+                                                        <el-table-column prop="speed" label="检测速度" width="80"></el-table-column>
+                                                        <el-table-column prop="network" label="网络依赖" width="80"></el-table-column>
+                                                        <el-table-column prop="features" label="主要特点"></el-table-column>
+                                                    </el-table>
+                                                </el-collapse-item>
+                                            </el-collapse>
+                                        </div>
+                                    </div>
+                                </el-card>
+
+                                <!-- 系统状态 -->
+                                <el-card class="status-card">
+                                    <div slot="header">
+                                        <span>系统状态</span>
+                                        <el-button type="text" @click="loadSystemStatus" style="float: right;">
+                                            <i class="el-icon-refresh"></i>
+                                        </el-button>
+                                    </div>
+                                    <div class="status-content">
+                                        <div class="status-item">
+                                            <span class="status-label">摄像头状态:</span>
+                                            <el-tag :type="cameraActive ? 'success' : 'info'" size="mini">
+                                                {{ cameraActive ? '运行中' : '未启动' }}
+                                            </el-tag>
+                                        </div>
+                                        <div class="status-item">
+                                            <span class="status-label">检测方法:</span>
+                                            <span class="status-value">{{ getCurrentMethodInfo().name }}</span>
+                                        </div>
+                                        <div class="status-item">
+                                            <span class="status-label">检测阈值:</span>
+                                            <span class="status-value">{{ systemStatus.liveness_threshold || 0.7 }}</span>
+                                        </div>
+                                        <div class="status-item">
+                                            <span class="status-label">最后更新:</span>
+                                            <span class="status-value">{{ formatTime(new Date()) }}</span>
+                                        </div>
+                                    </div>
+                                </el-card>
+
+                                <!-- 检测结果 -->
+                                <el-card class="result-card" v-if="lastAttendanceResult">
+                                    <div slot="header">
+                                        <span>最新检测结果</span>
+                                        <el-button type="text" @click="clearLastResult" style="float: right;">
+                                            <i class="el-icon-close"></i>
+                                        </el-button>
+                                    </div>
+                                    <div v-if="lastAttendanceResult.success" class="success-result">
+                                        <el-alert
+                                            title="考勤成功"
+                                            type="success"
+                                            :description="`${lastAttendanceResult.attendance_results[0].student_name} (${lastAttendanceResult.attendance_results[0].student_id}) 打卡成功`"
+                                            show-icon
+                                            :closable="false"
+                                        ></el-alert>
+                                        <div class="result-details">
+                                            <div class="detail-item">
+                                                <span class="detail-label">识别置信度:</span>
+                                                <el-progress
+                                                    :percentage="Math.round(lastAttendanceResult.attendance_results[0].confidence * 100)"
+                                                    :color="getProgressColor(lastAttendanceResult.attendance_results[0].confidence * 100)"
+                                                ></el-progress>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="detail-label">活体检测分数:</span>
+                                                <el-progress
+                                                    :percentage="Math.round(lastAttendanceResult.liveness_score * 100)"
+                                                    :color="getProgressColor(lastAttendanceResult.liveness_score * 100)"
+                                                ></el-progress>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="detail-label">检测方法:</span>
+                                                <span class="detail-value">{{ lastAttendanceResult.liveness_method_name }}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="detail-label">检测时间:</span>
+                                                <span class="detail-value">{{ formatTime(lastAttendanceResult.timestamp) }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-else class="error-result">
+                                        <el-alert
+                                            title="考勤失败"
+                                            type="error"
+                                            :description="lastAttendanceResult.error || '未知错误'"
+                                            show-icon
+                                            :closable="false"
+                                        ></el-alert>
+                                        <div v-if="lastAttendanceResult.liveness_score" class="result-details">
+                                            <div class="detail-item">
+                                                <span class="detail-label">活体检测分数:</span>
+                                                <el-progress
+                                                    :percentage="Math.round(lastAttendanceResult.liveness_score * 100)"
+                                                    status="exception"
+                                                ></el-progress>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </el-card>
+
+                                <!-- 今日考勤统计 -->
+                                <el-card class="summary-card">
+                                    <div slot="header">
+                                        <span>今日考勤统计</span>
+                                        <el-button type="text" @click="loadAttendanceSummary" style="float: right;">
+                                            <i class="el-icon-refresh"></i>
+                                        </el-button>
+                                    </div>
+                                    <div class="summary-content">
+                                        <div class="summary-item">
+                                            <div class="summary-number">{{ attendanceSummary.total_students }}</div>
+                                            <div class="summary-label">出勤人数</div>
+                                        </div>
+                                        <div class="summary-item">
+                                            <div class="summary-number">{{ attendanceSummary.total_records }}</div>
+                                            <div class="summary-label">打卡次数</div>
+                                        </div>
+                                        <div class="summary-item">
+                                            <div class="summary-number">{{ Math.round((attendanceSummary.avg_confidence || 0) * 100) }}%</div>
+                                            <div class="summary-label">平均置信度</div>
+                                        </div>
+                                        <div class="summary-item">
+                                            <div class="summary-number">{{ Math.round((attendanceSummary.avg_liveness_score || 0) * 100) }}%</div>
+                                            <div class="summary-label">平均活体分数</div>
+                                        </div>
+                                    </div>
+                                </el-card>
+                            </div>
+                        </div>
+                    </el-tab-pane>
+
+                    <!-- 学生管理 -->
+                    <el-tab-pane label="学生管理" name="students">
+                        <div class="students-container">
+                            <!-- 添加学生表单 -->
+                            <el-card class="add-student-card">
+                                <div slot="header">
+                                    <span>添加新学生</span>
+                                    <el-button type="text" @click="resetStudentForm" style="float: right;">
+                                        <i class="el-icon-refresh"></i> 重置表单
+                                    </el-button>
+                                </div>
+
+                                <el-form ref="studentForm" :model="newStudent" :rules="studentRules" label-width="100px">
+                                    <el-row :gutter="20">
+                                        <el-col :span="8">
+                                            <el-form-item label="学号" prop="student_id">
+                                                <el-input
+                                                    v-model="newStudent.student_id"
+                                                    placeholder="请输入学号"
+                                                    :disabled="addingStudent"
+                                                ></el-input>
+                                            </el-form-item>
+                                        </el-col>
+                                        <el-col :span="8">
+                                            <el-form-item label="姓名" prop="name">
+                                                <el-input
+                                                    v-model="newStudent.name"
+                                                    placeholder="请输入姓名"
+                                                    :disabled="addingStudent"
+                                                ></el-input>
+                                            </el-form-item>
+                                        </el-col>
+                                        <el-col :span="8">
+                                            <el-form-item label="班级" prop="class_name">
+                                                <el-input
+                                                    v-model="newStudent.class_name"
+                                                    placeholder="请输入班级"
+                                                    :disabled="addingStudent"
+                                                ></el-input>
+                                            </el-form-item>
+                                        </el-col>
+                                    </el-row>
+
+                                    <el-form-item label="人脸照片" prop="image">
+                                        <div class="photo-capture-section">
+                                            <!-- 摄像头预览区域 -->
+                                            <div class="camera-preview-container">
+                                                <div class="camera-preview">
+                                                    <video
+                                                        ref="studentVideo"
+                                                        :width="320"
+                                                        :height="240"
+                                                        autoplay
+                                                        muted
+                                                        class="student-video-element"
+                                                        :class="{ 'camera-inactive': !studentCameraActive }"
+                                                    ></video>
+                                                    <canvas
+                                                        ref="studentCanvas"
+                                                        :width="320"
+                                                        :height="240"
+                                                        style="display: none;"
+                                                    ></canvas>
+
+                                                    <!-- 摄像头未启动时的占位符 -->
+                                                    <div v-if="!studentCameraActive" class="student-camera-placeholder">
+                                                        <i class="el-icon-video-camera camera-placeholder-icon"></i>
+                                                        <p>点击启动摄像头</p>
+                                                    </div>
+                                                </div>
+
+                                                <!-- 拍摄结果预览 -->
+                                                <div v-if="capturedPhotoPreview" class="photo-preview">
+                                                    <img :src="capturedPhotoPreview" alt="拍摄的照片" class="preview-image" />
+                                                    <div class="preview-overlay">
+                                                        <el-button type="success" size="mini" @click="confirmPhoto">
+                                                            <i class="el-icon-check"></i> 确认使用
+                                                        </el-button>
+                                                        <el-button type="warning" size="mini" @click="retakePhoto">
+                                                            <i class="el-icon-refresh"></i> 重新拍摄
+                                                        </el-button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- 摄像头控制按钮 -->
+                                            <div class="photo-controls">
+                                                <el-button
+                                                    type="primary"
+                                                    @click="toggleStudentCamera"
+                                                    :disabled="addingStudent"
+                                                    size="small"
+                                                >
+                                                    <i :class="studentCameraActive ? 'el-icon-video-pause' : 'el-icon-video-play'"></i>
+                                                    {{ studentCameraActive ? '关闭摄像头' : '启动摄像头' }}
+                                                </el-button>
+
+                                                <el-button
+                                                    type="success"
+                                                    @click="captureStudentPhoto"
+                                                    :disabled="!studentCameraActive || addingStudent || !!capturedPhotoPreview"
+                                                    size="small"
+                                                >
+                                                    <i class="el-icon-camera"></i> 拍摄照片
+                                                </el-button>
+                                            </div>
+
+                                            <!-- 状态显示 -->
+                                            <div class="photo-status-info">
+                                                <el-tag v-if="newStudent.image" type="success" size="mini">
+                                                    <i class="el-icon-check"></i> 照片已就绪
+                                                </el-tag>
+                                                <el-tag v-else type="warning" size="mini">
+                                                    <i class="el-icon-warning"></i> 请拍摄人脸照片
+                                                </el-tag>
+                                            </div>
+                                        </div>
+                                    </el-form-item>
+
+                                    <el-form-item>
+                                        <el-button
+                                            type="primary"
+                                            @click="addStudent"
+                                            :loading="addingStudent"
+                                            :disabled="!newStudent.image"
+                                        >
+                                            <i class="el-icon-plus"></i> 添加学生
+                                        </el-button>
+                                        <el-button @click="resetStudentForm" :disabled="addingStudent">
+                                            <i class="el-icon-refresh"></i> 重置
+                                        </el-button>
+                                        <el-button type="info" @click="testAddStudent" size="mini" style="margin-left: 10px;">
+                                            <i class="el-icon-view"></i> 调试信息
+                                        </el-button>
+                                    </el-form-item>
+                                </el-form>
+                            </el-card>
+
+                            <!-- 学生列表 -->
+                            <el-card class="students-list-card">
+                                <div slot="header">
+                                    <span>学生列表 ({{ students.length }}人)</span>
+                                    <div style="float: right;">
+                                        <el-input
+                                            placeholder="搜索学号、姓名或班级"
+                                            v-model="studentSearchKeyword"
+                                            size="mini"
+                                            style="width: 200px; margin-right: 10px;"
+                                            prefix-icon="el-icon-search"
+                                            clearable
+                                            @clear="clearSearch"
+                                        ></el-input>
+                                        <el-button type="text" @click="clearSearch" v-if="studentSearchKeyword">
+                                            <i class="el-icon-close"></i> 清除搜索
+                                        </el-button>
+                                        <el-button type="text" @click="loadStudents">
+                                            <i class="el-icon-refresh"></i> 刷新
+                                        </el-button>
+                                        <el-button type="text" @click="debugStudentData" size="mini">
+                                            <i class="el-icon-view"></i> 调试
+                                        </el-button>
+                                    </div>
+                                </div>
+
+                                <el-table
+                                    :data="filteredStudents"
+                                    stripe
+                                    style="width: 100%"
+                                    v-loading="loadingStudents"
+                                    empty-text="暂无学生数据"
+                                >
+                                    <el-table-column prop="student_id" label="学号" width="120" sortable></el-table-column>
+                                    <el-table-column prop="name" label="姓名" width="120" sortable></el-table-column>
+                                    <el-table-column prop="class_name" label="班级" width="150" sortable></el-table-column>
+                                    <el-table-column label="人脸状态" width="120">
+                                        <template slot-scope="scope">
+                                            <el-tag :type="scope.row.has_face_encoding ? 'success' : 'warning'" size="mini">
+                                                {{ scope.row.has_face_encoding ? '已录入' : '未录入' }}
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column label="质量分数" width="120">
+                                        <template slot-scope="scope">
+                                            <span v-if="scope.row.face_quality_score && scope.row.face_quality_score > 0">
+                                                {{ (scope.row.face_quality_score * 100).toFixed(1) }}%
+                                            </span>
+                                            <span v-else>-</span>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="created_at" label="注册时间" :formatter="formatTableTime" sortable></el-table-column>
+                                    <el-table-column label="操作" width="150" fixed="right">
+                                        <template slot-scope="scope">
+                                            <el-button
+                                                size="mini"
+                                                type="primary"
+                                                @click="viewStudent(scope.row)"
+                                                icon="el-icon-view"
+                                            >
+                                                查看
+                                            </el-button>
+                                            <el-button
+                                                size="mini"
+                                                type="danger"
+                                                @click="deleteStudent(scope.row)"
+                                                icon="el-icon-delete"
+                                            >
+                                                删除
+                                            </el-button>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+
+                                <!-- 调试信息显示 -->
+                                <div style="margin-top: 20px; padding: 15px; background: #f0f9ff; border-radius: 4px; font-size: 12px; color: #666;">
+                                    <strong>实时调试信息:</strong><br>
+                                    - 原始学生数量: {{ students.length }}<br>
+                                    - 过滤后数量: {{ filteredStudents.length }}<br>
+                                    - 搜索关键词: "{{ studentSearchKeyword }}" ({{ studentSearchKeyword ? '有内容' : '空' }})<br>
+                                    - 搜索关键词长度: {{ studentSearchKeyword ? studentSearchKeyword.length : 0 }}<br>
+                                    - students数组类型: {{ Array.isArray(students) ? '数组' : '非数组' }}<br>
+                                    - filteredStudents数组类型: {{ Array.isArray(filteredStudents) ? '数组' : '非数组' }}<br>
+                                    <span v-if="students.length > 0">
+                                        - 第一个学生: {{ students[0].name }} ({{ students[0].student_id }})<br>
+                                        - 第一个学生完整数据: {{ JSON.stringify(students[0]) }}
+                                    </span>
+                                    <br>
+                                    <strong style="color: red;">注意: 搜索功能已暂时禁用，应显示全部学生</strong>
+                                </div>
+                            </el-card>
+                        </div>
+                    </el-tab-pane>
+
+                    <!-- 考勤记录 -->
+                    <el-tab-pane label="考勤记录" name="records">
+                        <div class="records-container">
+                            <el-card>
+                                <div slot="header">
+                                    <span>考勤记录</span>
+                                    <div style="float: right;">
+                                        <el-date-picker
+                                            v-model="selectedDate"
+                                            type="date"
+                                            placeholder="选择日期"
+                                            @change="loadAttendanceRecords"
+                                            format="yyyy-MM-dd"
+                                            value-format="yyyy-MM-dd"
+                                            size="mini"
+                                            style="margin-right: 10px;"
+                                        >
+                                        </el-date-picker>
+                                        <el-button type="primary" @click="loadAttendanceRecords" size="mini">
+                                            <i class="el-icon-search"></i> 查询
+                                        </el-button>
+                                        <el-button type="info" @click="exportRecords" size="mini" style="margin-left: 5px;">
+                                            <i class="el-icon-download"></i> 导出
+                                        </el-button>
+                                    </div>
+                                </div>
+
+                                <el-table
+                                    :data="attendanceRecords"
+                                    stripe
+                                    style="width: 100%"
+                                    v-loading="loadingRecords"
+                                    empty-text="暂无考勤记录"
+                                >
+                                    <el-table-column prop="student_id" label="学号" width="120" sortable></el-table-column>
+                                    <el-table-column prop="student_name" label="姓名" width="120" sortable></el-table-column>
+                                    <el-table-column prop="check_time" label="打卡时间" width="180" :formatter="formatTableTime" sortable></el-table-column>
+                                    <el-table-column prop="detection_method" label="检测方法" width="120">
+                                        <template slot-scope="scope">
+                                            <el-tag size="mini" :type="getMethodTagType(scope.row.detection_method)">
+                                                {{ getMethodDisplayName(scope.row.detection_method) }}
+                                            </el-tag>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="confidence" label="识别置信度" width="120" sortable>
+                                        <template slot-scope="scope">
+                                            <el-progress
+                                                :percentage="Math.round(scope.row.confidence * 100)"
+                                                :color="getProgressColor(scope.row.confidence * 100)"
+                                                :stroke-width="6"
+                                                :show-text="true"
+                                            ></el-progress>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="liveness_score" label="活体分数" width="120" sortable>
+                                        <template slot-scope="scope">
+                                            <el-progress
+                                                :percentage="Math.round(scope.row.liveness_score * 100)"
+                                                :color="getProgressColor(scope.row.liveness_score * 100)"
+                                                :stroke-width="6"
+                                                :show-text="true"
+                                            ></el-progress>
+                                        </template>
+                                    </el-table-column>
+                                    <el-table-column prop="status" label="状态" width="100">
+                                        <template slot-scope="scope">
+                                            <el-tag type="success" size="mini">{{ scope.row.status }}</el-tag>
+                                        </template>
+                                    </el-table-column>
+                                </el-table>
+                            </el-card>
+                        </div>
+                    </el-tab-pane>
+                </el-tabs>
+            </el-main>
+        </el-container>
+
+        <!-- 学生详情对话框 -->
+        <el-dialog
+            title="学生详情"
+            :visible.sync="studentDetailDialogVisible"
+            width="500px"
+        >
+            <div v-if="selectedStudent">
+                <el-descriptions :column="1" border>
+                    <el-descriptions-item label="学号">{{ selectedStudent.student_id }}</el-descriptions-item>
+                    <el-descriptions-item label="姓名">{{ selectedStudent.name }}</el-descriptions-item>
+                    <el-descriptions-item label="班级">{{ selectedStudent.class_name }}</el-descriptions-item>
+                    <el-descriptions-item label="人脸状态">
+                        <el-tag :type="selectedStudent.has_face_encoding ? 'success' : 'warning'">
+                            {{ selectedStudent.has_face_encoding ? '已录入' : '未录入' }}
+                        </el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="人脸质量分数">
+                        <span v-if="selectedStudent.face_quality_score">
+                            {{ (selectedStudent.face_quality_score * 100).toFixed(1) }}%
+                        </span>
+                        <span v-else>-</span>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="注册时间">{{ formatTime(selectedStudent.created_at) }}</el-descriptions-item>
+                </el-descriptions>
+            </div>
+            <span slot="footer" class="dialog-footer">
+                <el-button @click="studentDetailDialogVisible = false">关闭</el-button>
+            </span>
+        </el-dialog>
+    </div>
+
+    <!-- 引入Vue和Element UI -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.14/vue.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.15.13/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+    <script src="utils.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

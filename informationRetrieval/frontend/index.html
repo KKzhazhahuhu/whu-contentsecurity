@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电商信息检索系统 (混合检索版)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            padding: 20px;
+            color: #2c3e50;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .features {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+            font-size: 0.9em;
+            flex-wrap: wrap;
+        }
+
+        .feature-tag {
+            background: rgba(255,255,255,0.15);
+            padding: 6px 14px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .feature-tag.disabled {
+            background: rgba(255,255,255,0.08);
+            opacity: 0.6;
+        }
+
+        .search-section {
+            padding: 30px;
+            background: #fafbfc;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .search-input:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        .search-btn {
+            padding: 15px 30px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .search-btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .search-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .option-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .option-group label {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #3498db;
+        }
+
+        .checkbox-group label {
+            font-weight: 400;
+            color: #555;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e9ecef;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+        }
+
+        .slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-value {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-align: center;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .filter-input {
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .filter-input:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        .query-info {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .query-info.show {
+            display: block;
+        }
+
+        .correction-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .expansion-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+
+        .hybrid-info {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .results {
+            padding: 0 30px 30px;
+        }
+
+        .result-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .result-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            border-color: #3498db;
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .result-meta {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #7f8c8d;
+            flex-wrap: wrap;
+        }
+
+        .result-description {
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .score-badge {
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .search-type-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .hybrid-badge {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .keyword-badge {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #f5c6cb;
+        }
+
+        .comparison-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+            border: 1px solid #e9ecef;
+        }
+
+        .comparison-section.show {
+            display: block;
+        }
+
+        .comparison-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+            transition: background 0.2s ease;
+        }
+
+        .comparison-btn:hover {
+            background: #5a6268;
+        }
+
+        .debug-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+            border: 1px solid #e9ecef;
+        }
+
+        .debug-section.show {
+            display: block;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .tab-container {
+            margin-top: 20px;
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s ease;
+        }
+
+        .tab-btn.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: #dee2e6;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .search-section {
+                padding: 20px;
+            }
+
+            .results {
+                padding: 0 20px 20px;
+            }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            .search-options {
+                grid-template-columns: 1fr;
+            }
+
+            .filters {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>电商信息检索系统</h1>
+            <p>混合检索 · 智能搜索 · 语义理解</p>
+            <div class="features" id="features">
+                <div class="feature-tag">🔍 关键词搜索</div>
+                <div class="feature-tag" id="semanticFeature">🧠 语义搜索</div>
+                <div class="feature-tag">🔄 混合检索</div>
+                <div class="feature-tag">✏️ 拼写纠错</div>
+                <div class="feature-tag">🔗 同义词扩展</div>
+            </div>
+        </div>
+
+        <div class="search-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" class="search-input" placeholder="输入您要搜索的商品...">
+                <button onclick="search()" class="search-btn">🔍 搜索</button>
+                <button onclick="compareSearch()" class="comparison-btn">对比</button>
+                <button onclick="toggleDebug()" class="comparison-btn">调试</button>
+            </div>
+
+            <div class="search-options">
+                <div class="option-group">
+                    <label><strong>搜索模式</strong></label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="useHybrid" checked>
+                        <label for="useHybrid">启用混合检索</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enableSpellCheck" checked>
+                        <label for="enableSpellCheck">启用拼写纠错</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enableSynonymExpansion" checked>
+                        <label for="enableSynonymExpansion">启用同义词扩展</label>
+                    </div>
+                </div>
+
+                <div class="option-group">
+                    <label><strong>权重调节</strong></label>
+                    <div class="slider-group">
+                        <label>关键词权重: <span id="keywordWeightValue">0.6</span></label>
+                        <input type="range" id="keywordWeight" class="slider" min="0" max="1" step="0.1" value="0.6">
+                        <div class="slider-value">语义权重: <span id="semanticWeightValue">0.4</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label>最低价格</label>
+                    <input type="number" id="priceMin" class="filter-input" placeholder="0">
+                </div>
+                <div class="filter-group">
+                    <label>最高价格</label>
+                    <input type="number" id="priceMax" class="filter-input" placeholder="无限制">
+                </div>
+                <div class="filter-group">
+                    <label>分类筛选</label>
+                    <input type="text" id="category" class="filter-input" placeholder="输入分类">
+                </div>
+                <div class="filter-group">
+                    <label>结果数量</label>
+                    <select id="topK" class="filter-input">
+                        <option value="10">10</option>
+                        <option value="20">20</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="queryInfo" class="query-info"></div>
+
+            <div class="comparison-section" id="comparisonSection">
+                <h3>搜索方法对比</h3>
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="showTab('keyword')">关键词搜索</button>
+                        <button class="tab-btn" onclick="showTab('hybrid')" id="hybridTab">混合检索</button>
+                        <button class="tab-btn" onclick="showTab('enhanced')">增强搜索</button>
+                    </div>
+                    <div id="keywordTab" class="tab-content active"></div>
+                    <div id="hybridTabContent" class="tab-content"></div>
+                    <div id="enhancedTab" class="tab-content"></div>
+                </div>
+            </div>
+
+            <div class="debug-section" id="debugSection">
+                <h3>调试信息</h3>
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalProducts">-</div>
+                        <div class="stat-label">商品总数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="searchTime">-</div>
+                        <div class="stat-label">搜索耗时(ms)</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="searchStrategy">-</div>
+                        <div class="stat-label">搜索策略</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="searchCapabilities">-</div>
+                        <div class="stat-label">可用功能</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <button onclick="testSpellCheck()" class="comparison-btn">测试拼写检查</button>
+                    <button onclick="showSynonyms()" class="comparison-btn">查看同义词</button>
+                    <button onclick="getCapabilities()" class="comparison-btn">检查能力</button>
+                </div>
+                <div id="debugOutput" style="margin-top: 15px; padding: 10px; background: white; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #e9ecef;"></div>
+            </div>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let searchStartTime = 0;
+        let searchCapabilities = {};
+
+        // 权重滑块联动
+        document.getElementById('keywordWeight').addEventListener('input', function(e) {
+            const keywordWeight = parseFloat(e.target.value);
+            const semanticWeight = 1.0 - keywordWeight;
+            document.getElementById('keywordWeightValue').textContent = keywordWeight.toFixed(1);
+            document.getElementById('semanticWeightValue').textContent = semanticWeight.toFixed(1);
+        });
+
+        async function search() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('results');
+            const queryInfoDiv = document.getElementById('queryInfo');
+
+            resultsDiv.innerHTML = '<div class="loading">搜索中...</div>';
+            queryInfoDiv.className = 'query-info';
+
+            searchStartTime = Date.now();
+
+            try {
+                const filters = {};
+
+                const priceMin = document.getElementById('priceMin').value;
+                const priceMax = document.getElementById('priceMax').value;
+                const category = document.getElementById('category').value;
+
+                if (priceMin) filters.price_min = parseFloat(priceMin);
+                if (priceMax) filters.price_max = parseFloat(priceMax);
+                if (category) filters.category = category;
+
+                const response = await fetch(`${API_BASE}/api/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: parseInt(document.getElementById('topK').value),
+                        filters: filters,
+                        enable_spell_correction: document.getElementById('enableSpellCheck').checked,
+                        enable_synonym_expansion: document.getElementById('enableSynonymExpansion').checked,
+                        use_hybrid: document.getElementById('useHybrid').checked,
+                        keyword_weight: parseFloat(document.getElementById('keywordWeight').value)
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`搜索失败: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const searchTime = Date.now() - searchStartTime;
+
+                displayResults(data.results, data.query_info, data.message);
+                updateDebugInfo(data.query_info, searchTime, data.total_count);
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">搜索失败: ${error.message}</div>`;
+                queryInfoDiv.className = 'query-info';
+            }
+        }
+
+        function displayResults(results, queryInfo, message) {
+            const resultsDiv = document.getElementById('results');
+            const queryInfoDiv = document.getElementById('queryInfo');
+
+            // 显示查询信息
+            if (message || queryInfo.corrections?.length > 0 || queryInfo.expansions?.length > 0) {
+                let infoHtml = '';
+                let infoClass = 'query-info show';
+
+                if (queryInfo.corrections?.length > 0) {
+                    infoHtml = `<strong>拼写纠错:</strong> ${message}`;
+                    infoClass += ' correction-info';
+                } else if (queryInfo.expansions?.length > 0) {
+                    infoHtml = `<strong>同义词扩展:</strong> ${message}<br>扩展词汇: ${queryInfo.expansions.join(', ')}`;
+                    infoClass += ' expansion-info';
+                } else if (message && message.includes('混合检索')) {
+                    infoHtml = `<strong>混合检索:</strong> ${message}`;
+                    infoClass += ' hybrid-info';
+                } else if (message) {
+                    infoHtml = message;
+                }
+
+                queryInfoDiv.innerHTML = infoHtml;
+                queryInfoDiv.className = infoClass;
+            } else {
+                queryInfoDiv.className = 'query-info';
+            }
+
+            if (!results || results.length === 0) {
+                resultsDiv.innerHTML = `<div class="error">未找到关于 "${queryInfo.original_query}" 的结果</div>`;
+                return;
+            }
+
+            let html = `<h2>找到 ${results.length} 个关于 "${queryInfo.original_query}" 的结果</h2>`;
+
+            results.forEach(result => {
+                const scorePercentage = (result.score * 100).toFixed(1);
+                const searchTypeBadge = result.search_type === 'hybrid' ?
+                    '<span class="search-type-badge hybrid-badge">混合检索</span>' :
+                    '<span class="search-type-badge keyword-badge">关键词</span>';
+
+                html += `
+                    <div class="result-item">
+                        <div class="result-title">${result.title}</div>
+                        <div class="result-meta">
+                            <span>分类: ${result.main_category}</span>
+                            ${result.price ? `<span>价格: $${result.price.toFixed(2)}</span>` : ''}
+                            ${result.average_rating ? `<span>评分: ${result.average_rating.toFixed(1)}/5.0</span>` : ''}
+                            <span class="score-badge">相关度: ${scorePercentage}%</span>
+                            ${searchTypeBadge}
+                        </div>
+                        ${result.description ? `<div class="result-description">${result.description.substring(0, 200)}...</div>` : ''}
+                    </div>
+                `;
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function updateDebugInfo(queryInfo, searchTime, totalCount) {
+            document.getElementById('searchTime').textContent = searchTime;
+            document.getElementById('searchStrategy').textContent = queryInfo.search_strategy || 'exact';
+
+            const capabilities = Object.values(searchCapabilities).filter(Boolean).length;
+            document.getElementById('searchCapabilities').textContent = capabilities;
+
+            // 在调试输出中显示详细信息
+            const debugOutput = document.getElementById('debugOutput');
+            debugOutput.innerHTML = `
+                <strong>查询信息:</strong><br>
+                原始查询: ${queryInfo.original_query}<br>
+                处理后查询: ${queryInfo.processed_query}<br>
+                搜索策略: ${queryInfo.search_strategy}<br>
+                ${queryInfo.keyword_weight ? `关键词权重: ${queryInfo.keyword_weight}<br>` : ''}
+                ${queryInfo.semantic_weight ? `语义权重: ${queryInfo.semantic_weight}<br>` : ''}
+                ${queryInfo.corrections?.length > 0 ? `拼写纠错: ${queryInfo.corrections.join(', ')}<br>` : ''}
+                ${queryInfo.expansions?.length > 0 ? `同义词扩展: ${queryInfo.expansions.join(', ')}<br>` : ''}
+                结果数量: ${totalCount}
+            `;
+        }
+
+        async function compareSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            const comparisonSection = document.getElementById('comparisonSection');
+            comparisonSection.classList.toggle('show');
+
+            if (!comparisonSection.classList.contains('show')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/compare-search?query=${encodeURIComponent(query)}&top_k=5`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    throw new Error(`对比失败: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // 显示关键词搜索结果
+                document.getElementById('keywordTab').innerHTML = formatComparisonResults(data.comparison.keyword_only.results, '关键词搜索');
+
+                // 显示混合检索结果
+                if (data.comparison.hybrid) {
+                    document.getElementById('hybridTabContent').innerHTML = formatComparisonResults(data.comparison.hybrid.results, '混合检索');
+                    document.getElementById('hybridTab').style.display = 'block';
+                } else {
+                    document.getElementById('hybridTab').style.display = 'none';
+                }
+
+                // 显示增强搜索结果
+                document.getElementById('enhancedTab').innerHTML = formatComparisonResults(data.comparison.enhanced.results, '增强搜索');
+
+            } catch (error) {
+                comparisonSection.innerHTML = `<div class="error">对比失败: ${error.message}</div>`;
+            }
+        }
+
+        function formatComparisonResults(results, title) {
+            if (!results || results.length === 0) {
+                return `<p>没有找到结果</p>`;
+            }
+
+            let html = `<h4>${title} - ${results.length} 个结果</h4>`;
+            results.forEach((result, index) => {
+                const scorePercentage = (result.score * 100).toFixed(1);
+                html += `
+                    <div style="padding: 10px; margin: 5px 0; background: #f8fafc; border-radius: 8px; border-left: 4px solid #3498db;">
+                        <div style="font-weight: 600; margin-bottom: 5px;">${index + 1}. ${result.title.substring(0, 60)}...</div>
+                        <div style="font-size: 12px; color: #7f8c8d;">
+                            分类: ${result.main_category} | 相关度: ${scorePercentage}%
+                            ${result.search_type ? ` | 类型: ${result.search_type}` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            return html;
+        }
+
+        function showTab(tabName) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 显示选中的标签
+            document.getElementById(tabName + (tabName === 'hybrid' ? 'TabContent' : 'Tab')).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function toggleDebug() {
+            const debugSection = document.getElementById('debugSection');
+            debugSection.classList.toggle('show');
+        }
+
+        async function testSpellCheck() {
+            const testQueries = ['phoen', 'laptap', 'boook', 'cmputer', 'smartphon'];
+            const debugOutput = document.getElementById('debugOutput');
+
+            let output = '<strong>拼写检查测试:</strong><br>';
+
+            for (const query of testQueries) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/spell-check?query=${encodeURIComponent(query)}`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    output += `${query} → ${data.corrected} ${data.has_corrections ? '(已纠正)' : '(无需纠正)'}<br>`;
+                } catch (error) {
+                    output += `${query} → 检查失败<br>`;
+                }
+            }
+
+            debugOutput.innerHTML = output;
+        }
+
+        async function showSynonyms() {
+            const debugOutput = document.getElementById('debugOutput');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/synonyms`);
+                const data = await response.json();
+
+                let output = '<strong>同义词词典:</strong><br>';
+                Object.entries(data.synonyms).slice(0, 10).forEach(([word, synonyms]) => {
+                    output += `${word}: ${synonyms.join(', ')}<br>`;
+                });
+                output += `... 共 ${data.total_words} 个词汇`;
+
+                debugOutput.innerHTML = output;
+            } catch (error) {
+                debugOutput.innerHTML = '获取同义词失败';
+            }
+        }
+
+        async function getCapabilities() {
+            const debugOutput = document.getElementById('debugOutput');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/capabilities`);
+                const data = await response.json();
+
+                let output = '<strong>搜索能力:</strong><br>';
+                Object.entries(data).forEach(([capability, available]) => {
+                    const status = available ? '✅' : '❌';
+                    output += `${status} ${capability}: ${available ? '可用' : '不可用'}<br>`;
+                });
+
+                debugOutput.innerHTML = output;
+                searchCapabilities = data;
+
+                // 更新功能标签状态
+                updateFeatureTags(data);
+
+            } catch (error) {
+                debugOutput.innerHTML = '获取能力信息失败';
+            }
+        }
+
+        function updateFeatureTags(capabilities) {
+            const semanticFeature = document.getElementById('semanticFeature');
+            if (!capabilities.semantic_search) {
+                semanticFeature.classList.add('disabled');
+                semanticFeature.textContent = '🧠 语义搜索 (不可用)';
+            } else {
+                semanticFeature.classList.remove('disabled');
+                semanticFeature.textContent = '🧠 语义搜索';
+            }
+        }
+
+        // 回车键搜索
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                search();
+            }
+        });
+
+        // 页面加载时检查API状态
+        window.onload = async function() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const health = await response.json();
+
+                document.getElementById('totalProducts').textContent = health.total_products || 0;
+
+                if (health.search_capabilities) {
+                    searchCapabilities = health.search_capabilities;
+                    updateFeatureTags(health.search_capabilities);
+                }
+
+                if (!health.engine_ready) {
+                    document.getElementById('results').innerHTML =
+                        '<div class="loading">系统正在初始化，请稍候...</div>';
+                } else {
+                    document.getElementById('results').innerHTML =
+                        '<div style="text-align: center; padding: 50px; color: #7f8c8d;">请输入搜索关键词开始混合检索</div>';
+                }
+            } catch (error) {
+                document.getElementById('results').innerHTML =
+                    '<div class="error">无法连接到服务器，请确保API服务正在运行</div>';
+            }
+        };
+
+        // 添加一些示例查询的快捷按钮
+        function addExampleQueries() {
+            const examples = [
+                { text: 'phone', desc: '手机 (测试语义搜索)' },
+                { text: 'laptap', desc: '笔记本 (测试拼写纠错)' },
+                { text: 'cheap book', desc: '便宜的书 (测试同义词扩展)' },
+                { text: 'smartphone camera', desc: '智能手机摄像头 (测试混合检索)' }
+            ];
+
+            let exampleHtml = '<div style="margin-top: 15px;"><strong>示例查询:</strong> ';
+            examples.forEach(example => {
+                exampleHtml += `<button onclick="document.getElementById('searchInput').value='${example.text}'; search();"
+                    style="margin: 5px; padding: 5px 10px; background: #e9ecef; border: none; border-radius: 15px; cursor: pointer; font-size: 12px; transition: background 0.2s ease;"
+                    onmouseover="this.style.background='#dee2e6'"
+                    onmouseout="this.style.background='#e9ecef'"
+                    title="${example.desc}">${example.text}</button>`;
+            });
+            exampleHtml += '</div>';
+
+            document.querySelector('.search-section').insertAdjacentHTML('beforeend', exampleHtml);
+        }
+
+        // 页面加载完成后添加示例查询
+        document.addEventListener('DOMContentLoaded', addExampleQueries);
+    </script>
+</body>
+</html>
